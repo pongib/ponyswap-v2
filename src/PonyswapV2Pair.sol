@@ -52,7 +52,7 @@ contract PonyswapV2Pair is ERC20, Math {
     }
 
     function mint() public {
-        (uint112 reserve0, uint112 reserve1) = getReserve();
+        (uint112 reserve0, uint112 reserve1, ) = getReserves();
         uint256 balance0 = IERC20(s_token0).balanceOf(address(this));
         uint256 balance1 = IERC20(s_token1).balanceOf(address(this));
         uint256 amount0 = balance0 - reserve0;
@@ -95,11 +95,11 @@ contract PonyswapV2Pair is ERC20, Math {
         balance0 = IERC20(s_token0).balanceOf(address(this));
         balance1 = IERC20(s_token1).balanceOf(address(this));
 
-        (uint112 reserve0, uint112 reserve1) = getReserve();
+        (uint112 reserve0, uint112 reserve1, ) = getReserves();
 
         _update(balance0, balance1, reserve0, reserve1);
 
-        _sync();
+        emit Burn(msg.sender, amount0, amount1);
     }
 
     function swap(
@@ -110,7 +110,7 @@ contract PonyswapV2Pair is ERC20, Math {
         if (amount0Out == 0 && amount1Out == 0)
             revert InsufficientOutputAmount();
 
-        (uint112 reserve0, uint112 reserve1) = getReserve();
+        (uint112 reserve0, uint112 reserve1, ) = getReserves();
         if (amount0Out > reserve0 || amount1Out > reserve1)
             revert InsufficientLiquidity();
 
@@ -131,8 +131,8 @@ contract PonyswapV2Pair is ERC20, Math {
         emit Swap(msg.sender, amount0Out, amount1Out, to);
     }
 
-    function _sync() public {
-        (uint112 reserve0, uint112 reserve1) = getReserve();
+    function sync() public {
+        (uint112 reserve0, uint112 reserve1, ) = getReserves();
 
         _update(
             IERC20(s_token0).balanceOf(address(this)),
@@ -184,7 +184,7 @@ contract PonyswapV2Pair is ERC20, Math {
             revert TransferFailed();
     }
 
-    function getReserve()
+    function getReserves()
         public
         view
         returns (
@@ -193,6 +193,6 @@ contract PonyswapV2Pair is ERC20, Math {
             uint32
         )
     {
-        return (s_reserve0, s_reserve1, 0);
+        return (s_reserve0, s_reserve1, s_blockTimestampLast);
     }
 }
