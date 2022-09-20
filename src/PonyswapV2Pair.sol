@@ -2,9 +2,10 @@
 
 pragma solidity ^0.8.7;
 
+import "forge-std/console.sol";
 import "solmate/tokens/ERC20.sol";
 import "./libraries/Math.sol";
-import "forge-std/console.sol";
+import "./libraries/UQ112x112.sol";
 
 interface IERC20 {
     function balanceOf(address) external returns (uint256);
@@ -15,16 +16,33 @@ interface IERC20 {
 error InsufficientLiquidityMinted();
 error InsufficientLiquidityBurned();
 error TransferFailed();
+error InsufficientOutputAmount();
+error InsufficientLiquidity();
+error InvalidK();
+error BalanceOverflow();
 
 contract PonyswapV2Pair is ERC20, Math {
+    using UQ112x112 for uint224;
+
     uint256 private constant MINIMUM_LIQUIDITY = 1000;
     address private s_token0;
     address private s_token1;
     uint112 private s_reserve0;
     uint112 private s_reserve1;
+    uint32 private s_blockTimestampLast;
 
+    uint256 public s_price0CumulativeLast;
+    uint256 public s_price1CumulativeLast;
+
+    event Burn(address indexed sender, uint256 amount0, uint256 amount1);
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
-    event Sync(uint112 reserve0, uint112 reserve1);
+    event Sync(uint256 reserve0, uint256 reserve1);
+    event Swap(
+        address indexed sender,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address indexed to
+    );
 
     constructor(address token0, address token1)
         ERC20("PonyswapV2 LP", "PONY-LP", 18)
@@ -34,22 +52,17 @@ contract PonyswapV2Pair is ERC20, Math {
     }
 
     function mint() public {
+        (uint112 reserve0, uint112 reserve1) = getReserve();
         uint256 balance0 = IERC20(s_token0).balanceOf(address(this));
         uint256 balance1 = IERC20(s_token1).balanceOf(address(this));
-        uint256 amount0 = balance0 - s_reserve0;
-        uint256 amount1 = balance1 - s_reserve1;
+        uint256 amount0 = balance0 - reserve0;
+        uint256 amount1 = balance1 - reserve1;
         uint256 liquidity;
 
         if (totalSupply == 0) {
             liquidity = Math.sqrt(amount0 * amount1) - MINIMUM_LIQUIDITY;
             _mint(address(0), MINIMUM_LIQUIDITY);
         } else {
-            console.log("amount0", amount0);
-            console.log("amount1", amount1);
-            console.log("s_reserve0", s_reserve0);
-            console.log("s_reserve1", s_reserve1);
-            console.log("LP amount0", (totalSupply * amount0) / s_reserve0);
-            console.log("LP amount1", (totalSupply * amount1) / s_reserve1);
             liquidity = Math.min(
                 (totalSupply * amount0) / s_reserve0,
                 (totalSupply * amount1) / s_reserve1
@@ -62,7 +75,7 @@ contract PonyswapV2Pair is ERC20, Math {
         }
 
         _mint(msg.sender, liquidity);
-        _update(balance0, balance1);
+        _update(balance0, balance1, reserve0, reserve1);
         emit Mint(msg.sender, amount0, amount1);
     }
 
@@ -73,27 +86,88 @@ contract PonyswapV2Pair is ERC20, Math {
         uint256 amount0 = (balance0 * liquidity) / totalSupply;
         uint256 amount1 = (balance1 * liquidity) / totalSupply;
 
-        if (amount0 <= 0 || amount1 <= 0) {
-            revert InsufficientLiquidityBurned();
-        }
+        if (amount0 <= 0 || amount1 <= 0) revert InsufficientLiquidityBurned();
 
         _burn(msg.sender, liquidity);
         _safeTransfer(s_token0, msg.sender, amount0);
         _safeTransfer(s_token1, msg.sender, amount1);
 
+        balance0 = IERC20(s_token0).balanceOf(address(this));
+        balance1 = IERC20(s_token1).balanceOf(address(this));
+
+        (uint112 reserve0, uint112 reserve1) = getReserve();
+
+        _update(balance0, balance1, reserve0, reserve1);
+
         _sync();
     }
 
+    function swap(
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address to
+    ) public {
+        if (amount0Out == 0 && amount1Out == 0)
+            revert InsufficientOutputAmount();
+
+        (uint112 reserve0, uint112 reserve1) = getReserve();
+        if (amount0Out > reserve0 || amount1Out > reserve1)
+            revert InsufficientLiquidity();
+
+        uint256 balance0 = IERC20(s_token0).balanceOf(address(this)) -
+            amount0Out;
+        uint256 balance1 = IERC20(s_token1).balanceOf(address(this)) -
+            amount1Out;
+
+        if (balance0 * balance1 < uint256(reserve0) * uint256(reserve1)) {
+            revert InvalidK();
+        }
+
+        _update(balance0, balance1, reserve0, reserve1);
+
+        if (amount0Out > 0) _safeTransfer(s_token0, msg.sender, amount0Out);
+        if (amount1Out > 1) _safeTransfer(s_token1, msg.sender, amount1Out);
+
+        emit Swap(msg.sender, amount0Out, amount1Out, to);
+    }
+
     function _sync() public {
+        (uint112 reserve0, uint112 reserve1) = getReserve();
+
         _update(
             IERC20(s_token0).balanceOf(address(this)),
-            IERC20(s_token1).balanceOf(address(this))
+            IERC20(s_token1).balanceOf(address(this)),
+            reserve0,
+            reserve1
         );
     }
 
-    function _update(uint256 balance0, uint256 balance1) private {
+    function _update(
+        uint256 balance0,
+        uint256 balance1,
+        uint112 reserve0,
+        uint112 reserve1
+    ) private {
+        if (balance0 > type(uint112).max || balance1 > type(uint112).max)
+            revert BalanceOverflow();
+
+        unchecked {
+            uint32 timeElapsed = uint32(block.timestamp) - s_blockTimestampLast;
+
+            if (timeElapsed > 0 && reserve0 > 0 && reserve1 > 0) {
+                s_price0CumulativeLast +=
+                    uint256(UQ112x112.encode(reserve1).uqdiv(reserve0)) *
+                    timeElapsed;
+
+                s_price1CumulativeLast +=
+                    uint256(UQ112x112.encode(reserve0).uqdiv(reserve1)) *
+                    timeElapsed;
+            }
+        }
+
         s_reserve0 = uint112(balance0);
         s_reserve1 = uint112(balance1);
+        s_blockTimestampLast = uint32(block.timestamp);
 
         emit Sync(s_reserve0, s_reserve0);
     }
