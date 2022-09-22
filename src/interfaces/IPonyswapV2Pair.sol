@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.17;
 
-interface IZuniswapV2Pair {
+interface IPonyswapV2Pair {
     function initialize(address, address) external;
 
     function getReserves()
