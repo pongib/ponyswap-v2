@@ -13,6 +13,13 @@ contract PonyswapV2Factory {
     mapping(address => mapping(address => address)) public pairs;
     address[] public allPairs;
 
+    event PairCreated(
+        address indexed token0,
+        address indexed token1,
+        address pair,
+        uint256
+    );
+
     function createPair(address tokenA, address tokenB)
         public
         returns (address pair)
