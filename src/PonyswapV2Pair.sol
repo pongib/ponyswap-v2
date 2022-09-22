@@ -20,6 +20,7 @@ error InsufficientOutputAmount();
 error InsufficientLiquidity();
 error InvalidK();
 error BalanceOverflow();
+error AlreadyInitialized();
 
 contract PonyswapV2Pair is ERC20, Math {
     using UQ112x112 for uint224;
@@ -47,6 +48,14 @@ contract PonyswapV2Pair is ERC20, Math {
     constructor(address token0, address token1)
         ERC20("PonyswapV2 LP", "PONY-LP", 18)
     {
+        s_token0 = token0;
+        s_token1 = token1;
+    }
+
+    function initialize(address token0, address token1) public {
+        if (s_token0 != address(0) || s_token1 != address(0))
+            revert AlreadyInitialized();
+
         s_token0 = token0;
         s_token1 = token1;
     }
