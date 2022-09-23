@@ -26,8 +26,8 @@ contract PonyswapV2Pair is ERC20, Math {
     using UQ112x112 for uint224;
 
     uint256 private constant MINIMUM_LIQUIDITY = 1000;
-    address private s_token0;
-    address private s_token1;
+    address public s_token0;
+    address public s_token1;
     uint112 private s_reserve0;
     uint112 private s_reserve1;
     uint32 private s_blockTimestampLast;

@@ -5,6 +5,8 @@ pragma solidity ^0.8.17;
 import "./PonyswapV2Pair.sol";
 import "./interfaces/IPonyswapV2Pair.sol";
 
+import "forge-std/console.sol";
+
 error IdenticalAddresses();
 error PairExists();
 error ZeroAddress();
@@ -17,7 +19,7 @@ contract PonyswapV2Factory {
         address indexed token0,
         address indexed token1,
         address pair,
-        uint256
+        uint256 length
     );
 
     function createPair(address tokenA, address tokenB)
@@ -34,17 +36,19 @@ contract PonyswapV2Factory {
 
         bytes memory bytecode = type(PonyswapV2Pair).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
-
+        console.logBytes32(salt);
         assembly {
             pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
 
+        console.log(pair);
+
         IPonyswapV2Pair(pair).initialize(token0, token1);
 
-        pairs[token0][token1] = pair;
-        pairs[token1][token0] = pair;
+        // pairs[token0][token1] = pair;
+        // pairs[token1][token0] = pair;
 
-        allPairs.push(pair);
-        emit PairCreated(token0, token1, pair, allPairs.length);
+        // allPairs.push(pair);
+        // emit PairCreated(token0, token1, pair, allPairs.length);
     }
 }

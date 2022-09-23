@@ -2,17 +2,20 @@
 
 pragma solidity ^0.8.17;
 
-import "./interface/IZuniswapV2Factory.sol";
+import "./interfaces/IPonyswapV2Factory.sol";
+import "./interfaces/IPonyswapV2Pair.sol";
+import "./PonyswapV2Library.sol";
+import "./interfaces/IPonyswapV2Factory.sol";
 
 contract PonyswapV2Router {
     error InsufficientAAmount();
     error InsufficientBAmount();
     error SafeTransferFailed();
 
-    IZuniswapV2Factory factory;
+    IPonyswapV2Factory factory;
 
     constructor(address factoryAddress) {
-        IZuniswapV2Factory factory = IZuniswapV2Factory(factoryAddress);
+        IPonyswapV2Factory factory = IPonyswapV2Factory(factoryAddress);
     }
 
     function addLiquidity(
@@ -51,7 +54,7 @@ contract PonyswapV2Router {
         );
         _safeTransferFrom(tokenA, msg.sender, pairAddress, amountA);
         _safeTransferFrom(tokenB, msg.sender, pairAddress, amountB);
-        liquidity = IZuniswapV2Pair(pairAddress).mint(to);
+        liquidity = IPonyswapV2Pair(pairAddress).mint(to);
     }
 
     function _calculateLiquidity(
@@ -92,5 +95,23 @@ contract PonyswapV2Router {
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
             }
         }
+    }
+
+    function _safeTransferFrom(
+        address token,
+        address from,
+        address to,
+        uint256 value
+    ) private {
+        (bool success, bytes memory data) = token.call(
+            abi.encodeWithSignature(
+                "transferFrom(address,address,uint256)",
+                from,
+                to,
+                value
+            )
+        );
+        if (!success || (data.length != 0 && !abi.decode(data, (bool))))
+            revert SafeTransferFailed();
     }
 }

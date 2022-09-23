@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.17;
 
+import "./interfaces/IPonyswapV2Factory.sol";
 import "./interfaces/IPonyswapV2Pair.sol";
 import {PonyswapV2Pair} from "./PonyswapV2Pair.sol";
 
@@ -14,8 +15,8 @@ library PonyswapV2Library {
         address tokenA,
         address tokenB
     ) public returns (uint256 reserveA, uint256 reserveB) {
-        (address token0, address token1) = _sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1) = IPonyswapV2Pair(
+        (address token0, address token1) = sortTokens(tokenA, tokenB);
+        (uint256 reserve0, uint256 reserve1, ) = IPonyswapV2Pair(
             pairFor(factoryAddress, token0, token1)
         ).getReserves();
 
@@ -40,7 +41,7 @@ library PonyswapV2Library {
                         abi.encodePacked(
                             hex"ff",
                             factoryAddress,
-                            keccak256(abi.encodePacked(token0, token1)),
+                            keccak256(abi.encodePacked(token0, token1)), //salt
                             keccak256(type(PonyswapV2Pair).creationCode)
                         )
                     )
@@ -59,5 +60,13 @@ library PonyswapV2Library {
         // calculate liquidity not swap price
         // so it not constant product formula
         return (reserveOut * amountIn) / reserveIn;
+    }
+
+    function sortTokens(address tokenA, address tokenB)
+        internal
+        pure
+        returns (address token0, address token1)
+    {
+        return tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
     }
 }

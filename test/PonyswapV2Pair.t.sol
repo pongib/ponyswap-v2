@@ -280,6 +280,9 @@ contract PonyswapV2PairTest is Test {
 
         // vm.expectRevert(bytes(hex"42301c23")); // InsufficientOutputAmount
         vm.expectRevert(bytes4(keccak256("InsufficientOutputAmount()")));
+        console.logBytes4(bytes4(keccak256("InsufficientOutputAmount()")));
+        console.logBytes(abi.encodeWithSignature("InsufficientOutputAmount()"));
+
         pair.swap(0, 0, address(this));
     }
 
