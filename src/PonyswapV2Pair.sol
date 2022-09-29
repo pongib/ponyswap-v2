@@ -88,18 +88,23 @@ contract PonyswapV2Pair is ERC20, Math {
         emit Mint(msg.sender, amount0, amount1);
     }
 
-    function burn() public {
+    function burn(address to)
+        public
+        returns (uint256 amount0, uint256 amount1)
+    {
         uint256 balance0 = IERC20(s_token0).balanceOf(address(this));
         uint256 balance1 = IERC20(s_token1).balanceOf(address(this));
-        uint256 liquidity = balanceOf[msg.sender];
+        uint256 liquidity = balanceOf[address(this)];
+
         uint256 amount0 = (balance0 * liquidity) / totalSupply;
         uint256 amount1 = (balance1 * liquidity) / totalSupply;
 
-        if (amount0 <= 0 || amount1 <= 0) revert InsufficientLiquidityBurned();
+        if (amount0 == 0 || amount1 == 0) revert InsufficientLiquidityBurned();
 
-        _burn(msg.sender, liquidity);
-        _safeTransfer(s_token0, msg.sender, amount0);
-        _safeTransfer(s_token1, msg.sender, amount1);
+        _burn(address(this), liquidity);
+
+        _safeTransfer(s_token0, to, amount0);
+        _safeTransfer(s_token1, to, amount1);
 
         balance0 = IERC20(s_token0).balanceOf(address(this));
         balance1 = IERC20(s_token1).balanceOf(address(this));
@@ -135,7 +140,7 @@ contract PonyswapV2Pair is ERC20, Math {
         _update(balance0, balance1, reserve0, reserve1);
 
         if (amount0Out > 0) _safeTransfer(s_token0, msg.sender, amount0Out);
-        if (amount1Out > 1) _safeTransfer(s_token1, msg.sender, amount1Out);
+        if (amount1Out > 0) _safeTransfer(s_token1, msg.sender, amount1Out);
 
         emit Swap(msg.sender, amount0Out, amount1Out, to);
     }
