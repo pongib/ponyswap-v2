@@ -432,3 +432,45 @@ contract TestUser {
         PonyswapV2Pair(pairAddress).burn();
     }
 }
+
+contract Flashloaner {
+    error InsufficientFlashLoanAmount();
+
+    uint256 expectedLoanAmount;
+
+    function flashloan(
+        address pairAddress,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        address tokenAddress
+    ) public {
+        if (amount0Out > 0) {
+            expectedLoanAmount = amount0Out;
+        }
+
+        if (amount1Out > 0) {
+            expectedLoanAmount = amount1Out;
+        }
+
+        PonyswapV2Pair(pairAddress).swap(
+            amount0Out,
+            amount1Out,
+            address(this),
+            abi.encode(tokenAddress)
+        );
+    }
+
+    function ponyswapV2Call(
+        address sender,
+        uint256 amount0Out,
+        uint256 amount1Out,
+        bytes calldata data
+    ) public {
+        address tokenAddress = abi.decode(data, (address));
+        uint256 balance = ERC20(tokenAddress).balanceOf(address(this));
+
+        if (balance < expectedLoanAmount) revert InsufficientFlashLoanAmount();
+
+        ERC20(tokenAddress).transfer(msg.sender, balance);
+    }
+}
