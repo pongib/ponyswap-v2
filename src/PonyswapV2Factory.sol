@@ -45,10 +45,10 @@ contract PonyswapV2Factory {
 
         IPonyswapV2Pair(pair).initialize(token0, token1);
 
-        // pairs[token0][token1] = pair;
-        // pairs[token1][token0] = pair;
+        pairs[token0][token1] = pair;
+        pairs[token1][token0] = pair;
 
-        // allPairs.push(pair);
-        // emit PairCreated(token0, token1, pair, allPairs.length);
+        allPairs.push(pair);
+        emit PairCreated(token0, token1, pair, allPairs.length);
     }
 }
